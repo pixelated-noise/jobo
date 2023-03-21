@@ -51,7 +51,6 @@
     (future
       (with-open [out (io/writer out-file :append true)]
         (loop [[fst & rst :as coll] input]
-          (prn fst)
           (let [control (:control @state)]
             (cond
               (not (seq coll))  (swap! state assoc :control :done)
