@@ -37,7 +37,7 @@
       :millis-per-item-max (max duration millis-per-item-max)
       :last-touched        time})))
 
-(defn start! [& {:keys [fun input out-file stats-fn init-state name size]
+(defn start! [& {:keys [fun input out-file stats-fn init-state name size resume]
                  :or   {init-state default-init-state
                         stats-fn   default-stats-fn}}]
   (let [time  (System/currentTimeMillis)
@@ -46,7 +46,7 @@
                            (when size {:size size})
                            {:time-started time
                             :last-touched time}))]
-    (when (.exists (io/file out-file))
+    (when (and (not resume) (.exists (io/file out-file)))
       (io/delete-file out-file))
     (future
       (with-open [out (io/writer out-file :append true)]
@@ -82,4 +82,5 @@
 (defn resume! [& {:keys [input out-file]
                   :as args}]
   (let [done-count (count (line-seq (io/reader (io/file out-file))))]
-    (start! (assoc args :input (drop done-count input)))))
+    (println "Skipping" done-count "items...")
+    (start! (assoc args :input (drop done-count input) :resume true))))
