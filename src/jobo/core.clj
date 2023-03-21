@@ -46,7 +46,8 @@
                            (when size {:size size})
                            {:time-started time
                             :last-touched time}))]
-    ;;TODO delete existing file
+    (when (.exists (io/file out-file))
+      (io/delete-file out-file))
     (future
       (with-open [out (io/writer out-file :append true)]
         (loop [[fst & rst :as coll] input]
