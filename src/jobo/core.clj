@@ -1,6 +1,5 @@
 (ns jobo.core
-  (:require [clojure.java.io :as io]
-            [lambdaisland.edn-lines :as ednl]))
+  (:require [clojure.java.io :as io]))
 
 (defn write-edn-line [w obj]
   (binding [*print-length* nil
@@ -18,8 +17,9 @@
 (def default-init-state
   {:control :run})
 
-(defn default-stats-fn [{:keys [last-touched items-done millis-per-item-avg millis-per-item-max]
+(defn default-stats-fn [{:keys [last-touched items-done millis-per-item-avg millis-per-item-max size]
                          :or   {items-done          0
+                                millis-per-item-avg 0
                                 millis-per-item-max 0}
                          :as   state} x]
   (let [time     (System/currentTimeMillis)
@@ -27,44 +27,47 @@
         done     (inc items-done)]
     (merge
      state
+     (when size {:percent-done (float (* 100 (/ done size)))})
      {:items-done          done
       :millis-per-item-avg (-> millis-per-item-avg
                                (* (dec done))
                                (+ duration)
-                               (/ done))
+                               (/ done)
+                               float)
       :millis-per-item-max (max duration millis-per-item-max)
       :last-touched        time})))
 
-(defn start! [& {:keys [fun input results-file stats-fn init-state name size]
-                :or {init-state default-init-state
-                     stats-fn   default-stats-fn}}]
+(defn start! [& {:keys [fun input out-file stats-fn init-state name size]
+                 :or   {init-state default-init-state
+                        stats-fn   default-stats-fn}}]
   (let [time  (System/currentTimeMillis)
         state (atom (merge init-state
-                           {:name         name
-                            :items-size   size
-                            :time-started time
+                           (when name {:name name})
+                           (when size {:size size})
+                           {:time-started time
                             :last-touched time}))]
+    ;;TODO delete existing file
     (future
-      ;;TODO delete existing file
-      (ednl/with-append [out-file results-file]
-        (loop [element (first input)]
+      (with-open [out (io/writer out-file :append true)]
+        (loop [[fst & rst :as coll] input]
+          (prn fst)
           (let [control (:control @state)]
             (cond
-              (not (seq input))  (swap! state assoc :control :done)
+              (not (seq coll))  (swap! state assoc :control :done)
               (= :stop control)  nil
               (= :pause control) (do
                                    (Thread/sleep 3000)
-                                   (recur input))
+                                   (recur coll))
               :else
               (let [result (try
-                             (fun element)
+                             (fun fst)
                              (catch Throwable e e))]
                 (if (instance? Exception result)
                   (swap! state merge {:control :error :exception result})
                   (do
-                    (write-edn-line out-file result)
+                    (write-edn-line out result)
                     (swap! state stats-fn result)
-                    (recur (rest input))))))))))
+                    (recur rst)))))))))
     state))
 
 (defn pause! [job]
@@ -76,7 +79,7 @@
 (defn unpause! [job]
   (swap! job assoc :control :run))
 
-(defn resume! [& {:keys [input results-file]
+(defn resume! [& {:keys [input out-file]
                   :as args}]
-  (let [done-count (count (line-seq (io/reader (io/file results-file))))]
+  (let [done-count (count (line-seq (io/reader (io/file out-file))))]
     (start! (assoc args :input (drop done-count input)))))
