@@ -33,7 +33,7 @@
                                (* (dec done))
                                (+ duration)
                                (/ done)
-                               float)
+                               double)
       :millis-per-item-max (max duration millis-per-item-max)
       :last-touched        time})))
 
