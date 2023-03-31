@@ -84,3 +84,11 @@
   (let [done-count (count (line-seq (io/reader (io/file out-file))))]
     (println "Skipping" done-count "items...")
     (start! (assoc args :input (drop done-count input) :resume true))))
+
+(defn slurp
+  "Read in an ednl file. Returns a lazy sequence of EDN values."
+  [f]
+  (->  f
+       io/reader
+       reader-types/push-back-reader
+       reader-seq))
